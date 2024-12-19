@@ -1,0 +1,212 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+
+
+
+<h1>Coordinate Direction Finder</h1> 
+<p>Paste in a snippet like this so you do not need to type the coords. <img style=" max-width:200px;" src="example.png" /></p>
+<p   id="result"></p>
+<div class="grid-container">
+    <div>
+        <h2>Initial Coordinates</h2>
+        <label for="initialImage">Paste Initial Image:</label>
+        <div id="pasteInitial"
+             contenteditable="true"
+             style="border: 2px dashed #ccc; padding: 20px;">
+            Paste your file here
+        </div>
+        <input type="file" id="initialImage" accept="image/*" onchange="(e)=> loadImage(e.target.files[0], 'initialImagePreview')"><br><br>
+        <img id="initialImagePreview" style="max-width:200px;"><br><br>
+
+        <label for="x1">Initial X Coordinate:</label>
+        <input type="number" id="x1" name="x1"><br><br>
+        <label for="y1">Initial Y Coordinate:</label>
+        <input type="number" id="y1" name="y1"><br><br>
+    </div>
+    <div>
+        <h2>Target Coordinates</h2>
+        <label for="targetImage">Paste Target Image:</label>
+        <div id="pasteTarget"
+             contenteditable="true"
+             style="border: 2px dashed #ccc; padding: 20px;">
+            Paste your file here
+        </div>
+        <input type="file" id="targetImage" accept="image/*" onchange="(e)=> loadImage(e.target.files[0], 'targetImagePreview')"><br><br>
+        <img id="targetImagePreview" style=" max-width:200px;"><br><br>
+
+        <label for="description">Description:</label>
+        <input type="text" id="description" name="description" placeholder="Description"><br><br>
+        <label for="x2">Target X Coordinate:</label>
+        <input type="number" id="x2" name="x2"><br><br>
+        <label for="y2">Target Y Coordinate:</label>
+        <input type="number" id="y2" name="y2"><br><br>
+    </div>
+    <div>
+        <button type="button" onclick="calculateDirection()">Calculate Direction</button>
+        <button type="button" onclick="saveCoordinates()">Save Coordinates</button>
+    </div>
+
+
+    <div>
+     
+
+        <h2>Saved Coordinates</h2>
+        <div id="coordinatesList"></div>
+    </div>
+</div>
+@section Scripts {
+    <script>
+
+
+
+
+        function calculateDirection() {
+            var x1 = parseFloat(document.getElementById('x1').value);
+            var y1 = parseFloat(document.getElementById('y1').value);
+            var x2 = parseFloat(document.getElementById('x2').value);
+            var y2 = parseFloat(document.getElementById('y2').value);
+
+            var directionX = x2 > x1 ? "East" : x2 < x1 ? "West" : "";
+            var directionY = y2 > y1 ? "North" : y2 < y1 ? "South" : "";
+            var direction = directionX && directionY ? directionY + " " + directionX :
+                            directionX ? directionX :
+                            directionY ? directionY : "Same Point";
+
+            document.getElementById('result').textContent = 'Direction: ' + direction;
+        }
+
+        function saveCoordinates() {
+            var description = document.getElementById('description').value;
+            var x2 = parseFloat(document.getElementById('x2').value);
+            var y2 = parseFloat(document.getElementById('y2').value);
+
+            var coords = {
+                description: description,
+                x: x2,
+                y: y2
+            };
+
+            var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
+            coordsList.push(coords);
+            localStorage.setItem('coordinatesList', JSON.stringify(coordsList));
+
+            displayCoordinatesList();
+   
+        }
+
+        function displayCoordinatesList() {
+            var coordinatesListDiv = document.getElementById('coordinatesList');
+            coordinatesListDiv.innerHTML = '';
+
+            var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
+
+            coordsList.forEach((coords, index) => {
+                var entryDiv = document.createElement('div');
+                entryDiv.innerHTML = `
+                    <span>${coords.description}: (${coords.x}, ${coords.y})</span>
+                    <button type="button" onclick="getDirection(${coords.x}, ${coords.y})">Get Direction</button>
+                    <button type="button" onclick="deleteCoordinate(${index})">Delete</button>
+                `;
+                coordinatesListDiv.appendChild(entryDiv);
+            });
+        }
+
+        function getDirection(targetX, targetY) {
+            var x1 = parseFloat(document.getElementById('x1').value);
+            var y1 = parseFloat(document.getElementById('y1').value);
+
+            var directionX = targetX > x1 ? "East" : targetX < x1 ? "West" : "";
+            var directionY = targetY > y1 ? "North" : targetY < y1 ? "South" : "";
+            var direction = directionX && directionY ? directionY + " " + directionX :
+                            directionX ? directionX :
+                            directionY ? directionY : "Same Point";
+
+            document.getElementById('result').textContent = 'Direction: ' + direction;
+        }
+
+        function deleteCoordinate(index) {
+            var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
+            coordsList.splice(index, 1);
+            localStorage.setItem('coordinatesList', JSON.stringify(coordsList));
+            displayCoordinatesList();
+        }
+         async function performOcr(imageData) {
+            try {
+                const response = await fetch('/api/ocr', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ image: imageData })
+                });
+                if (!response.ok) {
+                    throw new Error('OCR request failed');
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('Error performing OCR:', error);
+                return { x: 0, y: 0 };
+            }
+        }
+
+
+        async function loadImage(imgFile, imageId) {
+            var reader = new FileReader();
+            reader.onload = async function(){
+                var output = document.getElementById(imageId);
+                output.src = reader.result;
+
+                // Call OCR endpoint
+                var ocrResult = await performOcr(reader.result);
+                if (imageId === 'initialImagePreview') {
+                    document.getElementById('x1').value = ocrResult.x;
+                    document.getElementById('y1').value = ocrResult.y;
+                } else if (imageId === 'targetImagePreview') {
+                    document.getElementById('x2').value = ocrResult.x;
+                    document.getElementById('y2').value = ocrResult.y;
+                }
+            };
+            reader.readAsDataURL(imgFile);
+        }
+
+        window.onload = () => {
+
+                document.getElementById("pasteInitial").addEventListener('paste', e => {
+                         const initialInput = document.getElementById('initialImage');
+          initialInput.files = e.clipboardData.files;
+          document.getElementById("pasteInitial").innerText = "Paste Image Here";
+          loadImage(initialInput.files[0], 'initialImagePreview');
+        });
+
+        document.getElementById("pasteTarget").addEventListener('paste', e => {
+
+        const targetInput = document.getElementById('targetImage');
+          targetInput.files = e.clipboardData.files;
+                 document.getElementById("pasteTarget").innerText = "Paste Image Here";
+                 loadImage(targetInput.files[0], 'targetImagePreview')
+        });
+
+            displayCoordinatesList();
+        };
+    </script>
+}
+<style>
+    .grid-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr auto;
+        gap: 20px;
+    }
+
+    #result {
+        font-size:larger;
+        color:green;
+        font-weight:bold;
+    }
+
+    button {
+        margin: 10px;
+    }
+</style>
