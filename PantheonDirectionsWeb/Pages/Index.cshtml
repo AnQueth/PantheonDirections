@@ -5,60 +5,142 @@
 }
 
 
-
-<h1>Coordinate Direction Finder</h1> 
+<div id="compassContainer">
+    <svg id="compass" viewBox="0 0 100 100" width="100" height="100">
+        <circle cx="50" cy="50" r="48" stroke="black" stroke-width="2" fill="none" />
+        <line x1="50" y1="2" x2="50" y2="20" stroke="black" stroke-width="2" />
+        <line x1="50" y1="80" x2="50" y2="98" stroke="black" stroke-width="2" />
+        <line x1="2" y1="50" x2="20" y2="50" stroke="black" stroke-width="2" />
+        <line x1="80" y1="50" x2="98" y2="50" stroke="black" stroke-width="2" />
+        <text x="50" y="10" text-anchor="middle" font-size="8" fill="black">N</text>
+        <text x="50" y="95" text-anchor="middle" font-size="8" fill="black">S</text>
+        <text x="10" y="55" text-anchor="middle" font-size="8" fill="black">W</text>
+        <text x="90" y="55" text-anchor="middle" font-size="8" fill="black">E</text>
+        <polygon id="arrow" points="50,10 45,20 55,20" fill="red" />
+    </svg>
+</div>
+<h1>Coordinate Direction Finder</h1>
 <p>Paste in a snippet like this so you do not need to type the coords. <img style=" max-width:200px;" src="example.png" /></p>
-<p   id="result"></p>
+<p id="result"></p>
+
 <div class="grid-container">
     <div>
         <h2>Initial Coordinates</h2>
-        <label for="initialImage">Paste Initial Image:</label>
+        <label for="initialImage">Paste Initial Image or Loc command output:</label>
         <div id="pasteInitial"
              contenteditable="true"
              style="border: 2px dashed #ccc; padding: 20px;">
-            Paste your file here
+            Paste here
         </div>
-        <input type="file" id="initialImage" accept="image/*" onchange="(e)=> loadImage(e.target.files[0], 'initialImagePreview')"><br><br>
-        <img id="initialImagePreview" style="max-width:200px;"><br><br>
+        <input type="file" id="initialImage" accept="image/*" onchange="(e)=> loadImage(e.target.files[0], 'initialImagePreview')"><br>
+        <img id="initialImagePreview" style="max-width:200px;"><br>
 
         <label for="x1">Initial X Coordinate:</label>
-        <input type="number" id="x1" name="x1"><br><br>
+        <input type="number" id="x1" name="x1"><br>
         <label for="y1">Initial Y Coordinate:</label>
-        <input type="number" id="y1" name="y1"><br><br>
+        <input type="number" id="y1" name="y1"><br>
     </div>
     <div>
         <h2>Target Coordinates</h2>
-        <label for="targetImage">Paste Target Image:</label>
+        <label for="targetImage">Paste Target Image or Loc command output:</label>
         <div id="pasteTarget"
              contenteditable="true"
              style="border: 2px dashed #ccc; padding: 20px;">
-            Paste your file here
+            Paste here
         </div>
-        <input type="file" id="targetImage" accept="image/*" onchange="(e)=> loadImage(e.target.files[0], 'targetImagePreview')"><br><br>
-        <img id="targetImagePreview" style=" max-width:200px;"><br><br>
+        <input type="file" id="targetImage" accept="image/*" onchange="(e)=> loadImage(e.target.files[0], 'targetImagePreview')"><br>
+        <img id="targetImagePreview" style=" max-width:200px;"><br>
 
         <label for="description">Description:</label>
-        <input type="text" id="description" name="description" placeholder="Description"><br><br>
+        <input type="text" id="description" name="description" placeholder="Description"><br>
         <label for="x2">Target X Coordinate:</label>
-        <input type="number" id="x2" name="x2"><br><br>
+        <input type="number" id="x2" name="x2"><br>
         <label for="y2">Target Y Coordinate:</label>
-        <input type="number" id="y2" name="y2"><br><br>
+        <input type="number" id="y2" name="y2"><br>
     </div>
-    <div>
+    <div class="ButtonsHere">
         <button type="button" onclick="calculateDirection()">Calculate Direction</button>
-        <button type="button" onclick="saveCoordinates()">Save Coordinates</button>
+        <br />
+        <button type="button" onclick="saveCoordinates()">Save Target Coordinates</button>
+    
+        <div>Save and Restore Coordinates</div>
+        <button type="button" onclick="downloadCoordinates()">Download JSON</button>
+        <br />
+        <input type="file" id="uploadJson" accept=".json" onchange="uploadCoordinates(event)">
+
     </div>
 
 
     <div>
-     
+
 
         <h2>Saved Coordinates</h2>
         <div id="coordinatesList"></div>
     </div>
 </div>
+
+<div id="gridhere">
+
+</div>
+
 @section Scripts {
     <script>
+
+             function drawGrid() {
+            var gridDiv = document.getElementById('gridhere');
+            gridDiv.innerHTML = '';
+
+            var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
+            if (coordsList.length === 0) return;
+
+            var initialX = parseFloat(document.getElementById('x1').value);
+            var initialY = parseFloat(document.getElementById('y1').value);
+
+            var minX = Math.min(...coordsList.map(c => c.x));
+            var minY = Math.min(...coordsList.map(c => c.y));
+            var maxX = Math.max(...coordsList.map(c => c.x));
+            var maxY = Math.max(...coordsList.map(c => c.y));
+
+            if (isNaN(initialX) || isNaN(initialY)) {
+                initialX = (minX + maxX) / 2;
+                initialY = (minY + maxY) / 2;
+            }
+
+            minX = Math.min(minX, initialX);
+            minY = Math.min(minY, initialY);
+            maxX = Math.max(maxX, initialX);
+            maxY = Math.max(maxY, initialY);
+
+            var rows = Math.ceil((maxY - minY) / 50) + 1;
+            var cols = Math.ceil((maxX - minX) / 50) + 1;
+
+            var table = document.createElement('table');
+            for (var i = 0; i < rows; i++) {
+                var tr = document.createElement('tr');
+                for (var j = 0; j < cols; j++) {
+                    var td = document.createElement('td');
+                    td.style.border = '1px solid black';
+                    td.style.width = '50px';
+                    td.style.height = '50px';
+
+                    if (Math.floor((initialX - minX) / 50) === j && Math.floor((initialY - minY) / 50) === (rows - i - 1)) {
+                        td.style.backgroundColor = 'lightgreen';
+                        td.textContent = 'Initial';
+                    } else {
+                        var coord = coordsList.find(c => Math.floor((c.x - minX) / 50) === j && Math.floor((c.y - minY) / 50) === (rows - i - 1));
+                        if (coord) {
+                            td.textContent = coord.description;
+                            td.style.backgroundColor = 'lightblue';
+                        }
+                    }
+
+                    tr.appendChild(td);
+                }
+                table.appendChild(tr);
+            }
+            gridDiv.appendChild(table);
+        }
+
 
 
 
@@ -94,7 +176,7 @@
             localStorage.setItem('coordinatesList', JSON.stringify(coordsList));
 
             displayCoordinatesList();
-   
+                 drawGrid();
         }
 
         function displayCoordinatesList() {
@@ -102,36 +184,81 @@
             coordinatesListDiv.innerHTML = '';
 
             var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
+               
+            coordsList.sort((a, b) => a.description.localeCompare(b.description));
 
             coordsList.forEach((coords, index) => {
-                var entryDiv = document.createElement('div');
-                entryDiv.innerHTML = `
-                    <span>${coords.description}: (${coords.x}, ${coords.y})</span>
-                    <button type="button" onclick="getDirection(${coords.x}, ${coords.y})">Get Direction</button>
-                    <button type="button" onclick="deleteCoordinate(${index})">Delete</button>
+                 
+                const s = `
+                    <div>${coords.description}</div><div>${coords.x}</div><div>${coords.y}</div>
+                    <div><button type="button" onclick="getDirection(${coords.x}, ${coords.y})">Get Direction</button></div>
+                    <div><button type="button" onclick="deleteCoordinate(${index})">Delete</button></div>
                 `;
-                coordinatesListDiv.appendChild(entryDiv);
+                coordinatesListDiv.innerHTML += s;
             });
         }
-
-        function getDirection(targetX, targetY) {
+         function getDirection(targetX, targetY) {
             var x1 = parseFloat(document.getElementById('x1').value);
             var y1 = parseFloat(document.getElementById('y1').value);
 
-            var directionX = targetX > x1 ? "East" : targetX < x1 ? "West" : "";
-            var directionY = targetY > y1 ? "North" : targetY < y1 ? "South" : "";
-            var direction = directionX && directionY ? directionY + " " + directionX :
-                            directionX ? directionX :
-                            directionY ? directionY : "Same Point";
+            var deltaX = targetX - x1;
+            var deltaY = targetY - y1;
 
-            document.getElementById('result').textContent = 'Direction: ' + direction;
+            var distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            var angleInDegrees = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+            angleInDegrees = (angleInDegrees + 360) % 360; // Normalize angle to be between 0 and 360
+            angleInDegrees = (450 - angleInDegrees) % 360; // Convert to compass angle
+
+            var direction;
+            if (angleInDegrees >= 337.5 || angleInDegrees < 22.5) {
+                direction = "North";
+            } else if (angleInDegrees >= 22.5 && angleInDegrees < 67.5) {
+                direction = "North-East";
+            } else if (angleInDegrees >= 67.5 && angleInDegrees < 112.5) {
+                direction = "East";
+            } else if (angleInDegrees >= 112.5 && angleInDegrees < 157.5) {
+                direction = "South-East";
+            } else if (angleInDegrees >= 157.5 && angleInDegrees < 202.5) {
+                direction = "South";
+            } else if (angleInDegrees >= 202.5 && angleInDegrees < 247.5) {
+                direction = "South-West";
+            } else if (angleInDegrees >= 247.5 && angleInDegrees < 292.5) {
+                direction = "West";
+            } else if (angleInDegrees >= 292.5 && angleInDegrees < 337.5) {
+                direction = "North-West";
+            }
+
+            document.getElementById('result').textContent = 'Direction: ' + direction + ', Angle: ' + angleInDegrees.toFixed(2) + '°, Distance: ' + distance.toFixed(2);
+                  // Rotate the arrow
+            var arrow = document.getElementById('arrow');
+            arrow.setAttribute('transform', `rotate(${angleInDegrees}, 50, 50)`);
+
         }
+
+
+
+
+
+        // function getDirection(targetX, targetY) {
+        //     var x1 = parseFloat(document.getElementById('x1').value);
+        //     var y1 = parseFloat(document.getElementById('y1').value);
+
+        //     var directionX = targetX > x1 ? "East" : targetX < x1 ? "West" : "";
+        //     var directionY = targetY > y1 ? "North" : targetY < y1 ? "South" : "";
+        //     var direction = directionX && directionY ? directionY + " " + directionX :
+        //                     directionX ? directionX :
+        //                     directionY ? directionY : "Same Point";
+
+        //     document.getElementById('result').textContent = 'Direction: ' + direction;
+        // }
 
         function deleteCoordinate(index) {
             var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
             coordsList.splice(index, 1);
             localStorage.setItem('coordinatesList', JSON.stringify(coordsList));
             displayCoordinatesList();
+              drawGrid();
         }
          async function performOcr(imageData) {
             try {
@@ -172,22 +299,84 @@
             reader.readAsDataURL(imgFile);
         }
 
+        function downloadCoordinates() {
+            var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
+            var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(coordsList));
+            var downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "coordinates.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function uploadCoordinates(event) {
+            var file = event.target.files[0];
+            var reader = new FileReader();
+            reader.onload = function(event) {
+                var coordsList = JSON.parse(event.target.result);
+                localStorage.setItem('coordinatesList', JSON.stringify(coordsList));
+                displayCoordinatesList();
+                drawGrid();
+            };
+            reader.readAsText(file);
+        }
+
         window.onload = () => {
+
+            drawGrid();
+
+              document.getElementById("pasteInitial").addEventListener('focus', e => {
+                e.target.innerText = '';
+            });
+
 
                 document.getElementById("pasteInitial").addEventListener('paste', e => {
                          const initialInput = document.getElementById('initialImage');
-          initialInput.files = e.clipboardData.files;
-          document.getElementById("pasteInitial").innerText = "Paste Image Here";
-          loadImage(initialInput.files[0], 'initialImagePreview');
+                         if(e.clipboardData.files.length > 0) {
+                             initialInput.files = e.clipboardData.files;
+                             document.getElementById("pasteInitial").innerText = "Paste Here";
+                             loadImage(initialInput.files[0], 'initialImagePreview');
+                         }
+                         else {
+                                       const text = e.clipboardData.getData('text');
+            ///jumploc 3794.26 507.21 -3029.16 247
+
+            const lines = text.split('\n');
+            const coords = lines[0].split(' ');
+            document.getElementById('x1').value = coords[1];
+            document.getElementById('y1').value = coords[3];
+         
+                         }
+
+                            drawGrid();
+
         });
+
+                document.getElementById("pasteTarget").addEventListener('focus', e => {
+                e.target.innerText = '';
+            });
 
         document.getElementById("pasteTarget").addEventListener('paste', e => {
 
         const targetInput = document.getElementById('targetImage');
+        if(e.clipboardData.files.length > 0) {
           targetInput.files = e.clipboardData.files;
-                 document.getElementById("pasteTarget").innerText = "Paste Image Here";
+                 document.getElementById("pasteTarget").innerText = "Paste Here";
                  loadImage(targetInput.files[0], 'targetImagePreview')
+        }
+        else {
+            const text = e.clipboardData.getData('text');
+            ///jumploc 3794.26 507.21 -3029.16 247
+
+            const lines = text.split('\n');
+            const coords = lines[0].split(' ');
+            document.getElementById('x2').value = coords[1];
+            document.getElementById('y2').value = coords[3];
+        }
         });
+            document.getElementById('x1').addEventListener('input', drawGrid);
+            document.getElementById('y1').addEventListener('input', drawGrid);
 
             displayCoordinatesList();
         };
@@ -196,17 +385,79 @@
 <style>
     .grid-container {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr auto;
+        grid-template-columns: auto auto auto 1fr;
         gap: 20px;
     }
 
+    .grid-container input {
+      margin:2px;
+    }
+
     #result {
-        font-size:larger;
-        color:green;
-        font-weight:bold;
+        font-size: larger;
+        color: green;
+        font-weight: bold;
     }
 
     button {
-        margin: 10px;
+        margin: 2px;
+
+    }
+
+    body {
+        font-size:smaller;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    td {
+        border: 1px solid black;
+        width: 50px;
+        height: 50px;
+        text-align: center;
+        vertical-align: middle;
+        padding: 5px;
+    }
+
+    th {
+        border: 1px solid black;
+        width: 50px;
+        height: 50px;
+        text-align: center;
+        vertical-align: middle;
+        padding: 5px;
+        background-color: #f2f2f2;
+    }
+
+    #coordinatesList {
+        display: grid;
+        grid-template-columns: 1fr auto auto auto auto;
+        gap: 5px;
+        max-height: 300px; 
+        overflow-y: auto;
+    }
+
+    #gridhere {
+        margin-top:10px;
+
+    }
+
+    .ButtonsHere {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        
+    }
+
+    #compassContainer {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 20px;
+        float:right;
     }
 </style>
