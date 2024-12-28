@@ -66,7 +66,11 @@
         <div>Save and Restore Coordinates</div>
         <button type="button" onclick="downloadCoordinates()">Download JSON</button>
         <br />
-        <input type="file" id="uploadJson" accept=".json" onchange="uploadCoordinates(event)">
+ 
+        <label for="uploadJson" class="custom-file-upload">
+            Restore JSON
+        </label>
+        <input type="file" id="uploadJson" accept=".json" onchange="uploadCoordinates(event)"  >
 
     </div>
 
@@ -146,18 +150,11 @@
 
 
         function calculateDirection() {
-            var x1 = parseFloat(document.getElementById('x1').value);
-            var y1 = parseFloat(document.getElementById('y1').value);
+          
             var x2 = parseFloat(document.getElementById('x2').value);
             var y2 = parseFloat(document.getElementById('y2').value);
 
-            var directionX = x2 > x1 ? "East" : x2 < x1 ? "West" : "";
-            var directionY = y2 > y1 ? "North" : y2 < y1 ? "South" : "";
-            var direction = directionX && directionY ? directionY + " " + directionX :
-                            directionX ? directionX :
-                            directionY ? directionY : "Same Point";
-
-            document.getElementById('result').textContent = 'Direction: ' + direction;
+            getDirection(x2,y2);
         }
 
         function saveCoordinates() {
@@ -179,20 +176,20 @@
                  drawGrid();
         }
 
-        function displayCoordinatesList() {
+          function displayCoordinatesList() {
             var coordinatesListDiv = document.getElementById('coordinatesList');
             coordinatesListDiv.innerHTML = '';
 
             var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
-               
+
+            // Sort the coordinates by description (name)
             coordsList.sort((a, b) => a.description.localeCompare(b.description));
 
-            coordsList.forEach((coords, index) => {
-                 
+            coordsList.forEach((coords) => {
                 const s = `
                     <div>${coords.description}</div><div>${coords.x}</div><div>${coords.y}</div>
                     <div><button type="button" onclick="getDirection(${coords.x}, ${coords.y})">Get Direction</button></div>
-                    <div><button type="button" onclick="deleteCoordinate(${index})">Delete</button></div>
+                    <div><button type="button" onclick="deleteCoordinate('${coords.description}', ${coords.x}, ${coords.y})">Delete</button></div>
                 `;
                 coordinatesListDiv.innerHTML += s;
             });
@@ -240,26 +237,23 @@
 
 
 
-        // function getDirection(targetX, targetY) {
-        //     var x1 = parseFloat(document.getElementById('x1').value);
-        //     var y1 = parseFloat(document.getElementById('y1').value);
+   
+        function deleteCoordinate(description, x, y) {
+               if (confirm(`Are you sure you want to delete the coordinate "${description}" at (${x}, ${y})?`)) {
+                var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
 
-        //     var directionX = targetX > x1 ? "East" : targetX < x1 ? "West" : "";
-        //     var directionY = targetY > y1 ? "North" : targetY < y1 ? "South" : "";
-        //     var direction = directionX && directionY ? directionY + " " + directionX :
-        //                     directionX ? directionX :
-        //                     directionY ? directionY : "Same Point";
+                // Find the index of the coordinate to delete
+                var index = coordsList.findIndex(coord => coord.description === description && coord.x === x && coord.y === y);
 
-        //     document.getElementById('result').textContent = 'Direction: ' + direction;
-        // }
-
-        function deleteCoordinate(index) {
-            var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
-            coordsList.splice(index, 1);
-            localStorage.setItem('coordinatesList', JSON.stringify(coordsList));
-            displayCoordinatesList();
-              drawGrid();
+                if (index !== -1) {
+                    coordsList.splice(index, 1);
+                    localStorage.setItem('coordinatesList', JSON.stringify(coordsList));
+                    displayCoordinatesList();
+                    drawGrid();
+                }
+            }
         }
+
          async function performOcr(imageData) {
             try {
                 const response = await fetch('/api/ocr', {
