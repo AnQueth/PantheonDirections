@@ -51,6 +51,8 @@
         <input type="file" id="targetImage" accept="image/*" onchange="(e)=> loadImage(e.target.files[0], 'targetImagePreview')"><br>
         <img id="targetImagePreview" style=" max-width:200px;"><br>
 
+        <label for="description">Zone:</label>
+        <input type="text" id="zone" name="zone" placeholder="Zone"><br>
         <label for="description">Description:</label>
         <input type="text" id="description" name="description" placeholder="Description"><br>
         <label for="x2">Target X Coordinate:</label>
@@ -62,15 +64,15 @@
         <button type="button" onclick="calculateDirection()">Calculate Direction</button>
         <br />
         <button type="button" onclick="saveCoordinates()">Save Target Coordinates</button>
-    
+
         <div>Save and Restore Coordinates</div>
         <button type="button" onclick="downloadCoordinates()">Download JSON</button>
         <br />
- 
+
         <label for="uploadJson" class="custom-file-upload">
             Restore JSON
         </label>
-        <input type="file" id="uploadJson" accept=".json" onchange="uploadCoordinates(event)"  >
+        <input type="file" id="uploadJson" accept=".json" onchange="uploadCoordinates(event)">
 
     </div>
 
@@ -79,25 +81,45 @@
 
 
         <h2>Saved Coordinates</h2>
+        <div>Select Zone<select id="selectedZone"></select></div>
         <div id="coordinatesList"></div>
     </div>
 </div>
-
+<div>
+    <label for="zoomSlider">Zoom:</label>
+    <input type="range" id="zoomSlider" min="10" max="100" value="50" oninput="drawGrid()">
+</div>
 <div id="gridhere">
-
 </div>
 
 @section Scripts {
     <script>
 
-             function drawGrid() {
+
+
+        function drawGrid() {
             var gridDiv = document.getElementById('gridhere');
             gridDiv.innerHTML = '';
 
-            var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
-            if (coordsList.length === 0) return;
+            // Store the current selection
+            var selectedZoneDropdown = document.getElementById('selectedZone');
+            var currentSelection = selectedZoneDropdown.value;
 
-            var initialX = parseFloat(document.getElementById('x1').value);
+            var unfiltered = JSON.parse(localStorage.getItem('coordinatesList')) || [];
+
+            var coordsList = [];
+            // Filter coordinates by selected zone
+            if (currentSelection) {
+                coordsList = unfiltered.filter(coord => (currentSelection == 'nozone' && coord.zone == undefined) || coord.zone === currentSelection);
+            }
+
+            if (coordsList.length === 0)
+                coordsList = unfiltered;
+
+            if (coordsList.length === 0)
+                return;
+
+              var initialX = parseFloat(document.getElementById('x1').value);
             var initialY = parseFloat(document.getElementById('y1').value);
 
             var minX = Math.min(...coordsList.map(c => c.x));
@@ -115,25 +137,33 @@
             maxX = Math.max(maxX, initialX);
             maxY = Math.max(maxY, initialY);
 
-            var rows = Math.ceil((maxY - minY) / 50) + 1;
-            var cols = Math.ceil((maxX - minX) / 50) + 1;
+            var zoomLevel = parseInt(document.getElementById('zoomSlider').value);
+            var cellSize = zoomLevel;
+
+            var rows = Math.ceil((maxY - minY) / cellSize) + 1;
+            var cols = Math.ceil((maxX - minX) / cellSize) + 1;
 
             var table = document.createElement('table');
+
+
+
             for (var i = 0; i < rows; i++) {
                 var tr = document.createElement('tr');
+
+
                 for (var j = 0; j < cols; j++) {
                     var td = document.createElement('td');
                     td.style.border = '1px solid black';
-                    td.style.width = '50px';
-                    td.style.height = '50px';
+                    td.style.width = cellSize + 'px';
+                    td.style.height = cellSize + 'px';
 
-                    if (Math.floor((initialX - minX) / 50) === j && Math.floor((initialY - minY) / 50) === (rows - i - 1)) {
+                    if (Math.floor((initialX - minX) / cellSize) === j && Math.floor((initialY - minY) / cellSize) === (rows - i - 1)) {
                         td.style.backgroundColor = 'lightgreen';
                         td.textContent = 'Initial';
                     } else {
-                        var coord = coordsList.find(c => Math.floor((c.x - minX) / 50) === j && Math.floor((c.y - minY) / 50) === (rows - i - 1));
-                        if (coord) {
-                            td.textContent = coord.description;
+                        var coordsInCell = coordsList.filter(c => Math.floor((c.x - minX) / cellSize) === j && Math.floor((c.y - minY) / cellSize) === (rows - i - 1));
+                        if (coordsInCell.length > 0) {
+                            td.textContent = coordsInCell.map(c => c.description).join('\n');
                             td.style.backgroundColor = 'lightblue';
                         }
                     }
@@ -145,24 +175,22 @@
             gridDiv.appendChild(table);
         }
 
-
-
-
-
         function calculateDirection() {
-          
+
             var x2 = parseFloat(document.getElementById('x2').value);
             var y2 = parseFloat(document.getElementById('y2').value);
 
-            getDirection(x2,y2);
+            getDirection(x2, y2);
         }
 
         function saveCoordinates() {
             var description = document.getElementById('description').value;
             var x2 = parseFloat(document.getElementById('x2').value);
             var y2 = parseFloat(document.getElementById('y2').value);
+            var zone = document.getElementById('zone').value;
 
             var coords = {
+                zone: zone,
                 description: description,
                 x: x2,
                 y: y2
@@ -173,28 +201,58 @@
             localStorage.setItem('coordinatesList', JSON.stringify(coordsList));
 
             displayCoordinatesList();
-                 drawGrid();
+            drawGrid();
         }
 
-          function displayCoordinatesList() {
+        function displayCoordinatesList() {
             var coordinatesListDiv = document.getElementById('coordinatesList');
             coordinatesListDiv.innerHTML = '';
 
             var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
 
+            // Extract unique zones
+            var uniqueZones = [...new Set(coordsList.map(coord => coord.zone == undefined ? 'nozone' : coord.zone))];
+
+            // Store the current selection
+            var selectedZoneDropdown = document.getElementById('selectedZone');
+            var currentSelection = selectedZoneDropdown.value;
+
+            // Populate the selectedZone dropdown
+            selectedZoneDropdown.innerHTML = ''; // Clear existing options
+
+            var option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'All';
+            selectedZoneDropdown.appendChild(option);
+
+            uniqueZones.forEach(zone => {
+                var option = document.createElement('option');
+                option.value = zone;
+                option.textContent = zone;
+                selectedZoneDropdown.appendChild(option);
+            });
+
+            // Reapply the old selection if it exists
+            if (uniqueZones.includes(currentSelection)) {
+                selectedZoneDropdown.value = currentSelection;
+            }
+            // Filter coordinates by selected zone
+            if (currentSelection != '') {
+                coordsList = coordsList.filter(coord => (currentSelection == 'nozone' && coord.zone == undefined) || coord.zone === currentSelection);
+            }
             // Sort the coordinates by description (name)
             coordsList.sort((a, b) => a.description.localeCompare(b.description));
 
             coordsList.forEach((coords) => {
                 const s = `
-                    <div>${coords.description}</div><div>${coords.x}</div><div>${coords.y}</div>
-                    <div><button type="button" onclick="getDirection(${coords.x}, ${coords.y})">Get Direction</button></div>
-                    <div><button type="button" onclick="deleteCoordinate('${coords.description}', ${coords.x}, ${coords.y})">Delete</button></div>
-                `;
+                            <div>${coords.zone == undefined ? '' : coords.zone }</div><div>${coords.description}</div><div>${coords.x}</div><div>${coords.y}</div>
+                            <div><button type="button" onclick="getDirection(${coords.x}, ${coords.y})">Get Direction</button></div>
+                            <div><button type="button" onclick="deleteCoordinate('${coords.description}', ${coords.x}, ${coords.y})">Delete</button></div>
+                        `;
                 coordinatesListDiv.innerHTML += s;
             });
         }
-         function getDirection(targetX, targetY) {
+        function getDirection(targetX, targetY) {
             var x1 = parseFloat(document.getElementById('x1').value);
             var y1 = parseFloat(document.getElementById('y1').value);
 
@@ -227,19 +285,14 @@
             }
 
             document.getElementById('result').textContent = 'Direction: ' + direction + ', Angle: ' + angleInDegrees.toFixed(2) + '°, Distance: ' + distance.toFixed(2);
-                  // Rotate the arrow
+            // Rotate the arrow
             var arrow = document.getElementById('arrow');
             arrow.setAttribute('transform', `rotate(${angleInDegrees}, 50, 50)`);
 
         }
 
-
-
-
-
-   
         function deleteCoordinate(description, x, y) {
-               if (confirm(`Are you sure you want to delete the coordinate "${description}" at (${x}, ${y})?`)) {
+            if (confirm(`Are you sure you want to delete the coordinate "${description}" at (${x}, ${y})?`)) {
                 var coordsList = JSON.parse(localStorage.getItem('coordinatesList')) || [];
 
                 // Find the index of the coordinate to delete
@@ -254,14 +307,16 @@
             }
         }
 
-         async function performOcr(imageData) {
+        async function performOcr(imageData) {
             try {
                 const response = await fetch('/api/ocr', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ image: imageData })
+                    body: JSON.stringify({
+                        image: imageData
+                    })
                 });
                 if (!response.ok) {
                     throw new Error('OCR request failed');
@@ -269,14 +324,16 @@
                 return await response.json();
             } catch (error) {
                 console.error('Error performing OCR:', error);
-                return { x: 0, y: 0 };
+                return {
+                    x: 0,
+                    y: 0
+                };
             }
         }
 
-
         async function loadImage(imgFile, imageId) {
             var reader = new FileReader();
-            reader.onload = async function(){
+            reader.onload = async function () {
                 var output = document.getElementById(imageId);
                 output.src = reader.result;
 
@@ -307,7 +364,7 @@
         function uploadCoordinates(event) {
             var file = event.target.files[0];
             var reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = function (event) {
                 var coordsList = JSON.parse(event.target.result);
                 localStorage.setItem('coordinatesList', JSON.stringify(coordsList));
                 displayCoordinatesList();
@@ -320,60 +377,68 @@
 
             drawGrid();
 
-              document.getElementById("pasteInitial").addEventListener('focus', e => {
+            document.getElementById("pasteInitial").addEventListener('focus', e => {
                 e.target.innerText = '';
             });
 
+            function InitialPaste(e) {
+                const initialInput = document.getElementById('initialImage');
+                if (e.clipboardData.files.length > 0) {
+                    initialInput.files = e.clipboardData.files;
+                    document.getElementById("pasteInitial").innerText = "Paste Here";
+                    loadImage(initialInput.files[0], 'initialImagePreview');
+                } else {
+                    const text = e.clipboardData.getData('text');
+                    ///jumploc 3794.26 507.21 -3029.16 247
 
-                document.getElementById("pasteInitial").addEventListener('paste', e => {
-                         const initialInput = document.getElementById('initialImage');
-                         if(e.clipboardData.files.length > 0) {
-                             initialInput.files = e.clipboardData.files;
-                             document.getElementById("pasteInitial").innerText = "Paste Here";
-                             loadImage(initialInput.files[0], 'initialImagePreview');
-                         }
-                         else {
-                                       const text = e.clipboardData.getData('text');
-            ///jumploc 3794.26 507.21 -3029.16 247
+                    const lines = text.split('\n');
+                    const coords = lines[0].split(' ');
+                    document.getElementById('x1').value = coords[1];
+                    document.getElementById('y1').value = coords[3];
 
-            const lines = text.split('\n');
-            const coords = lines[0].split(' ');
-            document.getElementById('x1').value = coords[1];
-            document.getElementById('y1').value = coords[3];
+                }
+
+                drawGrid();
+            }
+
+            document.getElementById("pasteInitial").addEventListener('paste', InitialPaste);
+
          
-                         }
 
-                            drawGrid();
-
-        });
-
-                document.getElementById("pasteTarget").addEventListener('focus', e => {
+            document.getElementById("pasteTarget").addEventListener('focus', e => {
                 e.target.innerText = '';
             });
 
-        document.getElementById("pasteTarget").addEventListener('paste', e => {
+            document.getElementById("pasteTarget").addEventListener('paste', e => {
 
-        const targetInput = document.getElementById('targetImage');
-        if(e.clipboardData.files.length > 0) {
-          targetInput.files = e.clipboardData.files;
-                 document.getElementById("pasteTarget").innerText = "Paste Here";
-                 loadImage(targetInput.files[0], 'targetImagePreview')
-        }
-        else {
-            const text = e.clipboardData.getData('text');
-            ///jumploc 3794.26 507.21 -3029.16 247
+                const targetInput = document.getElementById('targetImage');
+                if (e.clipboardData.files.length > 0) {
+                    targetInput.files = e.clipboardData.files;
+                    document.getElementById("pasteTarget").innerText = "Paste Here";
+                    loadImage(targetInput.files[0], 'targetImagePreview')
+                } else {
+                    const text = e.clipboardData.getData('text');
+                    ///jumploc 3794.26 507.21 -3029.16 247
 
-            const lines = text.split('\n');
-            const coords = lines[0].split(' ');
-            document.getElementById('x2').value = coords[1];
-            document.getElementById('y2').value = coords[3];
-        }
-        });
+                    const lines = text.split('\n');
+                    const coords = lines[0].split(' ');
+                    document.getElementById('x2').value = coords[1];
+                    document.getElementById('y2').value = coords[3];
+                }
+            });
             document.getElementById('x1').addEventListener('input', drawGrid);
             document.getElementById('y1').addEventListener('input', drawGrid);
 
             displayCoordinatesList();
+
+            document.getElementById('selectedZone').addEventListener('change', function () {
+              
+                displayCoordinatesList();
+                drawGrid();
+            });
+
         };
+
     </script>
 }
 <style>
@@ -383,9 +448,9 @@
         gap: 20px;
     }
 
-    .grid-container input {
-      margin:2px;
-    }
+        .grid-container input {
+            margin: 2px;
+        }
 
     #result {
         font-size: larger;
@@ -395,11 +460,10 @@
 
     button {
         margin: 2px;
-
     }
 
     body {
-        font-size:smaller;
+        font-size: smaller;
     }
 
     table {
@@ -428,15 +492,14 @@
 
     #coordinatesList {
         display: grid;
-        grid-template-columns: 1fr auto auto auto auto;
+        grid-template-columns: auto 1fr auto auto auto auto;
         gap: 5px;
-        max-height: 300px; 
+        max-height: 300px;
         overflow-y: auto;
     }
 
     #gridhere {
-        margin-top:10px;
-
+        margin-top: 10px;
     }
 
     .ButtonsHere {
@@ -444,7 +507,6 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        
     }
 
     #compassContainer {
@@ -452,6 +514,6 @@
         justify-content: center;
         align-items: center;
         margin-top: 20px;
-        float:right;
+        float: right;
     }
 </style>
